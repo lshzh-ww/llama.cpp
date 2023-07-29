@@ -618,20 +618,22 @@ kernel void kernel_rope(
         constant       int & mode,
         constant     float & freq_base,
         constant     float & freq_scale,
-        uint3 tpig[[thread_position_in_grid]]) {
+        uint3 tpig[[threadgroup_position_in_grid]],
+        uint3 tpitg[[thread_position_in_threadgroup]],
+        uint3 ntg[[threads_per_threadgroup]]) {
     const int64_t i3 = tpig[2];
     const int64_t i2 = tpig[1];
     const int64_t i1 = tpig[0];
 
     const bool is_neox = mode & 2;
-    const float theta_scale = pow(freq_base, -2.0f/n_dims);
+    const float theta_scale = pow(freq_base, -2.0f/n_dims*ntg[0]);
 
     const int64_t p = ((mode & 1) == 0 ? n_past + i2 : i2);
 
-    float theta = freq_scale * (float)p;
+    float theta = freq_scale * (float)p * pow(freq_base, -2.0f/n_dims*tpitg[0]);
 
     if (!is_neox) {
-        for (int64_t i0 = 0; i0 < ne0; i0 += 2) {
+        for (int64_t i0 = 2 * tpitg[0]; i0 < ne0; i0 += 2 * ntg[0]) {
             const float cos_theta = cos(theta);
             const float sin_theta = sin(theta);
 
