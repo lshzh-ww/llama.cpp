@@ -140,7 +140,9 @@ kernel void kernel_soft_max(
         threadgroup float  * buf [[threadgroup(0)]],
         uint3 tgpig[[threadgroup_position_in_grid]],
         uint3 tpitg[[thread_position_in_threadgroup]],
-        uint3   ntg[[threads_per_threadgroup]]) {
+        uint3   ntg[[threads_per_threadgroup]],
+        uint sgitg[[simdgroup_index_in_threadgroup]],
+        uint tiisg[[thread_index_in_simdgroup]]) {
     const int64_t i03 = tgpig[2];
     const int64_t i02 = tgpig[1];
     const int64_t i01 = tgpig[0];
@@ -149,52 +151,47 @@ kernel void kernel_soft_max(
     device       float * pdst  = dst  + i03*ne02*ne01*ne00 + i02*ne01*ne00 + i01*ne00;
 
     // parallel max
-    buf[tpitg[0]] = -INFINITY;
+    float max = -INFINITY, sum = 0;
     for (int i00 = tpitg[0]; i00 < ne00; i00 += ntg[0]) {
-        buf[tpitg[0]] = MAX(buf[tpitg[0]], psrc0[i00]);
+        max = MAX(max, psrc0[i00]);
+    }
+    max = simd_max(max);
+    if (tiisg == 0) {
+        buf[sgitg] = max;
     }
 
     // reduce
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (uint i = ntg[0]/2; i > 0; i /= 2) {
+    for (uint i = ntg[0]/ 32 / 2; i > 0; i /= 2) {
         if (tpitg[0] < i) {
             buf[tpitg[0]] = MAX(buf[tpitg[0]], buf[tpitg[0] + i]);
         }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-
-    // broadcast
-    if (tpitg[0] == 0) {
-        buf[0] = buf[0];
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    const float max = buf[0];
+    max = buf[0];
 
     // parallel sum
-    buf[tpitg[0]] = 0.0f;
     for (int i00 = tpitg[0]; i00 < ne00; i00 += ntg[0]) {
-        buf[tpitg[0]] += exp(psrc0[i00] - max);
+        sum += exp(psrc0[i00] - max);
+    }
+    sum = simd_sum(sum);
+    if (tiisg == 0) {
+        buf[sgitg] = sum;
     }
 
     // reduce
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (uint i = ntg[0]/2; i > 0; i /= 2) {
+    for (uint i = ntg[0]/ 32 / 2; i > 0; i /= 2) {
         if (tpitg[0] < i) {
             buf[tpitg[0]] += buf[tpitg[0] + i];
         }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-
-    // broadcast
-    if (tpitg[0] == 0) {
-        buf[0] = buf[0];
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    const float sum = buf[0];
+    sum = buf[0];
 
     for (int i00 = tpitg[0]; i00 < ne00; i00 += ntg[0]) {
         pdst[i00] = exp(psrc0[i00] - max) / sum;

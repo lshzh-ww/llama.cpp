@@ -684,7 +684,7 @@ void ggml_metal_graph_compute(
                                 encoder = [command_buffer computeCommandEncoderWithDescriptor: edesc];
                             }
 
-                            const int nth = 32;
+                            const int nth = 128;
 
                             [encoder setComputePipelineState:ctx->pipeline_soft_max];
                             [encoder setBuffer:id_src0 offset:offs_src0 atIndex:0];
@@ -692,7 +692,7 @@ void ggml_metal_graph_compute(
                             [encoder setBytes:&ne00 length:sizeof(ne00) atIndex:2];
                             [encoder setBytes:&ne01 length:sizeof(ne01) atIndex:3];
                             [encoder setBytes:&ne02 length:sizeof(ne02) atIndex:4];
-                            [encoder setThreadgroupMemoryLength:nth*sizeof(float) atIndex:0];
+                            [encoder setThreadgroupMemoryLength:nth/32*sizeof(float) atIndex:0];
 
                             [encoder dispatchThreadgroups:MTLSizeMake(ne01, ne02, ne03) threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
                         } break;
