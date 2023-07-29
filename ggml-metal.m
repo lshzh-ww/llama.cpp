@@ -1053,7 +1053,7 @@ void ggml_metal_graph_compute(
                                 encoder = [command_buffer computeCommandEncoderWithDescriptor: edesc];
                             }
 
-                            const int nth = 32;
+                            const int nth = 128;
 
                             switch (src0t) {
                                 case GGML_TYPE_F32:
@@ -1093,9 +1093,9 @@ void ggml_metal_graph_compute(
                             [encoder setBytes:&nb1  length:sizeof(uint64_t) atIndex:15];
                             [encoder setBytes:&nb2  length:sizeof(uint64_t) atIndex:16];
                             [encoder setBytes:&nb3  length:sizeof(uint64_t) atIndex:17];
-
-                            [encoder dispatchThreadgroups:MTLSizeMake(ne01, ne02, ne03) threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
-                        } break;
+                            const int64_t n = ggml_nelements(src0);
+                            [encoder dispatchThreadgroups:MTLSizeMake((n + nth - 1) / nth, 1, 1) threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
+                            } break;
                     default:
                         {
                             fprintf(stderr, "%s: node %3d, op = %8s not implemented\n", __func__, i, ggml_op_name(dst->op));
