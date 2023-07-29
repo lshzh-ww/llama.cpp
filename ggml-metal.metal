@@ -532,23 +532,15 @@ kernel void kernel_mul_mat_f16_f32(
     device const half  * x = (device const half  *) (src0 + r0*nb01 + im*nb02);
     device const float * y = (device const float *) (src1 + r1*nb11 + im*nb12);
 
-    sum[tpitg.x] = 0.0f;
+    float sumf = 0.0f, allsum;
 
     for (int i = tpitg.x; i < ne00; i += tptg.x) {
-        sum[tpitg.x] += (float) x[i] * (float) y[i];
+        sumf += (float) x[i] * (float) y[i];
     }
-
-    // accumulate the sum from all threads in the threadgroup
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (uint i = tptg.x/2; i > 0; i /= 2) {
-        if (tpitg.x < i) {
-            sum[tpitg.x] += sum[tpitg.x + i];
-        }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
+    allsum = simd_sum(sumf);
 
     if (tpitg.x == 0) {
-        dst[im*ne1*ne0 + r1*ne0 + r0] = sum[0];
+        dst[im*ne1*ne0 + r1*ne0 + r0] = allsum;
     }
 }
 
